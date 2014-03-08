@@ -63,4 +63,5 @@ ergonomadic -conf ergonomadic.conf
 - [RFC 2811: IRC Channel Management](http://tools.ietf.org/html/rfc2811)
 - [RFC 2812: IRC Client Protocol](http://tools.ietf.org/html/rfc2812)
 - [RFC 2813: IRC Server Protocol](http://tools.ietf.org/html/rfc2813)
+- [IRCv3 Working Group](http://ircv3.org/)
 - [IRC/2 Numeric List](https://www.alien.net.au/irc/irc2numerics.html)
