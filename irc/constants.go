@@ -32,35 +32,36 @@ const (
 	QUIT_TIMEOUT  = time.Minute     // how long after idle before a client is kicked
 
 	// string codes
-	AWAY    StringCode = "AWAY"
-	CAP     StringCode = "CAP"
-	DEBUG   StringCode = "DEBUG"
-	ERROR   StringCode = "ERROR"
-	INVITE  StringCode = "INVITE"
-	ISON    StringCode = "ISON"
-	JOIN    StringCode = "JOIN"
-	KICK    StringCode = "KICK"
-	KILL    StringCode = "KILL"
-	LIST    StringCode = "LIST"
-	MODE    StringCode = "MODE"
-	MOTD    StringCode = "MOTD"
-	NAMES   StringCode = "NAMES"
-	NICK    StringCode = "NICK"
-	NOTICE  StringCode = "NOTICE"
-	OPER    StringCode = "OPER"
-	PART    StringCode = "PART"
-	PASS    StringCode = "PASS"
-	PING    StringCode = "PING"
-	PONG    StringCode = "PONG"
-	PRIVMSG StringCode = "PRIVMSG"
-	PROXY   StringCode = "PROXY"
-	QUIT    StringCode = "QUIT"
-	TIME    StringCode = "TIME"
-	TOPIC   StringCode = "TOPIC"
-	USER    StringCode = "USER"
-	VERSION StringCode = "VERSION"
-	WHO     StringCode = "WHO"
-	WHOIS   StringCode = "WHOIS"
+	AUTHENTICATE StringCode = "AUTHENTICATE"
+	AWAY         StringCode = "AWAY"
+	CAP          StringCode = "CAP"
+	DEBUG        StringCode = "DEBUG"
+	ERROR        StringCode = "ERROR"
+	INVITE       StringCode = "INVITE"
+	ISON         StringCode = "ISON"
+	JOIN         StringCode = "JOIN"
+	KICK         StringCode = "KICK"
+	KILL         StringCode = "KILL"
+	LIST         StringCode = "LIST"
+	MODE         StringCode = "MODE"
+	MOTD         StringCode = "MOTD"
+	NAMES        StringCode = "NAMES"
+	NICK         StringCode = "NICK"
+	NOTICE       StringCode = "NOTICE"
+	OPER         StringCode = "OPER"
+	PART         StringCode = "PART"
+	PASS         StringCode = "PASS"
+	PING         StringCode = "PING"
+	PONG         StringCode = "PONG"
+	PRIVMSG      StringCode = "PRIVMSG"
+	PROXY        StringCode = "PROXY"
+	QUIT         StringCode = "QUIT"
+	TIME         StringCode = "TIME"
+	TOPIC        StringCode = "TOPIC"
+	USER         StringCode = "USER"
+	VERSION      StringCode = "VERSION"
+	WHO          StringCode = "WHO"
+	WHOIS        StringCode = "WHOIS"
 
 	// numeric codes
 	RPL_WELCOME           NumericCode = 1
@@ -200,6 +201,15 @@ const (
 	ERR_NOOPERHOST        NumericCode = 491
 	ERR_UMODEUNKNOWNFLAG  NumericCode = 501
 	ERR_USERSDONTMATCH    NumericCode = 502
+	RPL_LOGGEDIN          NumericCode = 900
+	RPL_LOGGEDOUT         NumericCode = 901
+	ERR_NICKLOCKED        NumericCode = 902
+	RPL_SASLSUCCESS       NumericCode = 903
+	ERR_SASLFAIL          NumericCode = 904
+	ERR_SASLTOOLONG       NumericCode = 905
+	ERR_SASLABORTED       NumericCode = 906
+	ERR_SASLALREADY       NumericCode = 907
+	RPL_SASLMECHS         NumericCode = 908
 
 	CAP_LS    CapSubCommand = "LS"
 	CAP_LIST  CapSubCommand = "LIST"
@@ -251,6 +261,7 @@ const (
 var (
 	SupportedCapabilities = CapabilitySet{
 		MultiPrefix: true,
+		SASL:        true,
 	}
 )
 

@@ -381,6 +381,24 @@ func (msg *QuitCommand) HandleRegServer(server *Server) {
 	msg.Client().Quit(msg.message)
 }
 
+func (msg *AuthenticateCommand) HandleRegServer(server *Server) {
+	client := msg.Client()
+	// check for SASL support?
+
+	switch msg.arg {
+	case "PLAIN":
+		client.Reply("AUTHENTICATE +")
+		return
+
+	case "*":
+		client.ErrSASLAborted()
+		return
+
+	default:
+		// TODO
+	}
+}
+
 //
 // normal commands
 //

@@ -982,3 +982,17 @@ func NewKillCommand(args []string) (editableCommand, error) {
 		comment:  args[1],
 	}, nil
 }
+
+type AuthenticateCommand struct {
+	BaseCommand
+	arg string
+}
+
+func NewAuthenticateCommand(args []string) (editableCommand, error) {
+	if len(args) < 1 {
+		return nil, NotEnoughArgsError
+	}
+	return &AuthenticateCommand{
+		arg: args[0],
+	}, nil
+}

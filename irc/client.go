@@ -12,27 +12,28 @@ func IsNickname(nick string) bool {
 }
 
 type Client struct {
-	atime        time.Time
-	authorized   bool
-	awayMessage  string
-	capabilities CapabilitySet
-	capState     CapState
-	channels     ChannelSet
-	commands     chan editableCommand
-	ctime        time.Time
-	flags        map[UserMode]bool
-	hasQuit      bool
-	hops         uint
-	hostname     string
-	idleTimer    *time.Timer
-	loginTimer   *time.Timer
-	nick         string
-	phase        Phase
-	quitTimer    *time.Timer
-	realname     string
-	server       *Server
-	socket       *Socket
-	username     string
+	atime         time.Time
+	authenticated bool
+	authorized    bool
+	awayMessage   string
+	capabilities  CapabilitySet
+	capState      CapState
+	channels      ChannelSet
+	commands      chan editableCommand
+	ctime         time.Time
+	flags         map[UserMode]bool
+	hasQuit       bool
+	hops          uint
+	hostname      string
+	idleTimer     *time.Timer
+	loginTimer    *time.Timer
+	nick          string
+	phase         Phase
+	quitTimer     *time.Timer
+	realname      string
+	server        *Server
+	socket        *Socket
+	username      string
 }
 
 func NewClient(server *Server, conn net.Conn) *Client {
