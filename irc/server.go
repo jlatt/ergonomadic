@@ -102,6 +102,7 @@ func (server *Server) processCommand(cmd Command) {
 			return
 		}
 		regCmd.HandleRegServer(server)
+		server.tryRegister(client)
 
 	case Normal:
 		srvCmd, ok := cmd.(ServerCommand)
@@ -186,7 +187,8 @@ func (s *Server) listen(addr string) {
 //
 
 func (s *Server) tryRegister(c *Client) {
-	if c.HasNick() && c.HasUsername() && (c.capState != CapNegotiating) {
+	if c.HasNick() && c.HasUsername() && (c.capState != CapNegotiating) &&
+		(!c.capabilities[SASL] || c.authenticated) {
 		c.Register()
 		c.RplWelcome()
 		c.RplYourHost()
@@ -270,40 +272,40 @@ func (msg *CapCommand) HandleRegServer(server *Server) {
 	switch msg.subCommand {
 	case CAP_LS:
 		client.capState = CapNegotiating
-		client.Reply("CAP LS * :%s", SupportedCapabilities)
+		client.Reply("CAP %s LS :%s", client.Nick(), SupportedCapabilities)
 
 	case CAP_LIST:
-		client.Reply("CAP LIST * :%s", client.capabilities)
+		client.Reply("CAP %s LIST :%s", client.Nick(), client.capabilities)
 
 	case CAP_REQ:
 		client.capState = CapNegotiating
 		for capability := range msg.capabilities {
 			if !SupportedCapabilities[capability] {
-				client.Reply("CAP NAK * :%s", msg.capabilities)
+				client.Reply("CAP %s NAK :%s", client.Nick(), msg.capabilities)
 				return
 			}
 		}
 		for capability := range msg.capabilities {
 			client.capabilities[capability] = true
 		}
-		client.Reply("CAP ACK * :%s", msg.capabilities)
+		client.Reply("CAP %s ACK :%s", client.Nick(), msg.capabilities)
 
 	case CAP_CLEAR:
 		format := strings.TrimRight(
 			strings.Repeat("%s%s ", len(client.capabilities)), " ")
-		args := make([]interface{}, len(client.capabilities))
-		index := 0
+		args := make([]interface{}, len(client.capabilities)+1)
+		args[0] = client.Nick()
+		index := 1
 		for capability := range client.capabilities {
 			args[index] = Disable
 			args[index+1] = capability
 			index += 2
 			delete(client.capabilities, capability)
 		}
-		client.Reply("CAP ACK * :"+format, args...)
+		client.Reply("CAP %s ACK :"+format, args...)
 
 	case CAP_END:
 		client.capState = CapNegotiated
-		server.tryRegister(client)
 
 	default:
 		client.ErrInvalidCapCmd(msg.subCommand)
@@ -338,7 +340,6 @@ func (m *NickCommand) HandleRegServer(s *Server) {
 	}
 
 	client.SetNickname(m.nickname)
-	s.tryRegister(client)
 }
 
 func (msg *RFC1459UserCommand) HandleRegServer(server *Server) {
@@ -374,7 +375,6 @@ func (msg *UserCommand) HandleRegServer2(server *Server) {
 		client.capState = CapNegotiated
 	}
 	client.username, client.realname = msg.username, msg.realname
-	server.tryRegister(client)
 }
 
 func (msg *QuitCommand) HandleRegServer(server *Server) {
@@ -385,18 +385,36 @@ func (msg *AuthenticateCommand) HandleRegServer(server *Server) {
 	client := msg.Client()
 	// check for SASL support?
 
-	switch msg.arg {
-	case "PLAIN":
+	if strings.ToUpper(msg.arg) == "PLAIN" {
 		client.Reply("AUTHENTICATE +")
 		return
+	}
 
-	case "*":
+	if msg.arg == "*" {
 		client.ErrSASLAborted()
 		return
-
-	default:
-		// TODO
 	}
+
+	hash := server.operators[client.username]
+	if hash == nil {
+		client.ErrSASLFail()
+		return
+	}
+
+	password, err := DecodePassword(msg.arg)
+	if err != nil {
+		client.ErrSASLFail()
+		return
+	}
+
+	if ComparePassword(hash, password) != nil {
+		client.ErrSASLFail()
+		return
+	}
+
+	client.authenticated = true
+	client.RplSASLSuccess()
+	server.makeOperator(client)
 }
 
 //
@@ -668,6 +686,12 @@ func (msg *WhoCommand) HandleServer(server *Server) {
 	client.RplEndOfWho(mask)
 }
 
+func (server *Server) makeOperator(client *Client) {
+	client.flags[Operator] = true
+	client.RplYoureOper()
+	client.RplUModeIs(client)
+}
+
 func (msg *OperCommand) HandleServer(server *Server) {
 	client := msg.Client()
 
@@ -676,9 +700,7 @@ func (msg *OperCommand) HandleServer(server *Server) {
 		return
 	}
 
-	client.flags[Operator] = true
-	client.RplYoureOper()
-	client.RplUModeIs(client)
+	server.makeOperator(client)
 }
 
 func (msg *AwayCommand) HandleServer(server *Server) {

@@ -522,5 +522,15 @@ func (target *Client) ErrInvalidCapCmd(subCommand CapSubCommand) {
 
 func (target *Client) ErrSASLAborted() {
 	target.NumericReply(ERR_SASLABORTED,
-		"%s :SASL authentication aborted", target.Nick())
+		":SASL authentication aborted")
+}
+
+func (target *Client) ErrSASLFail() {
+	target.NumericReply(ERR_SASLFAIL,
+		":SASL authentication failed")
+}
+
+func (target *Client) RplSASLSuccess() {
+	target.NumericReply(RPL_SASLSUCCESS,
+		":SASL authentication successful")
 }
