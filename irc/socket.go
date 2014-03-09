@@ -2,6 +2,7 @@ package irc
 
 import (
 	"bufio"
+	"github.com/jlatt/ergonomadic/irc/debug"
 	"io"
 	"log"
 	"net"
@@ -38,7 +39,7 @@ func (socket *Socket) String() string {
 
 func (socket *Socket) Close() {
 	socket.conn.Close()
-	if DEBUG_NET {
+	if debug.Net {
 		log.Printf("%s closed", socket)
 	}
 }
@@ -57,7 +58,7 @@ func (socket *Socket) readLines(commands chan<- editableCommand) {
 		if len(line) == 0 {
 			continue
 		}
-		if DEBUG_NET {
+		if debug.Net {
 			log.Printf("%s → %s", socket, line)
 		}
 
@@ -87,7 +88,7 @@ func (socket *Socket) Write(line string) (err error) {
 		return
 	}
 
-	if DEBUG_NET {
+	if debug.Net {
 		log.Printf("%s ← %s", socket, line)
 	}
 	return
@@ -95,7 +96,7 @@ func (socket *Socket) Write(line string) (err error) {
 
 func (socket *Socket) isError(err error, dir rune) bool {
 	if err != nil {
-		if DEBUG_NET && (err != io.EOF) {
+		if debug.Net && (err != io.EOF) {
 			log.Printf("%s %c error: %s", socket, dir, err)
 		}
 		return true
