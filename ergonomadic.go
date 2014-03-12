@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/jlatt/ergonomadic/irc"
+	"github.com/jlatt/ergonomadic/irc/debug"
 	"log"
 	"os"
 	"path/filepath"
@@ -46,11 +47,10 @@ func main() {
 		return
 	}
 
-	// TODO move to data structures
-	irc.DEBUG_NET = config.Debug.Net
-	irc.DEBUG_CLIENT = config.Debug.Client
-	irc.DEBUG_CHANNEL = config.Debug.Channel
-	irc.DEBUG_SERVER = config.Debug.Server
+	debug.Net = config.Debug.Net
+	debug.Client = config.Debug.Client
+	debug.Channel = config.Debug.Channel
+	debug.Server = config.Debug.Server
 
 	server := irc.NewServer(config)
 	log.Println(irc.SEM_VER, "running")

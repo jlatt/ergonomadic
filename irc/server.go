@@ -4,12 +4,13 @@ import (
 	"bufio"
 	"database/sql"
 	"fmt"
+	"github.com/jlatt/ergonomadic/irc/debug"
 	"log"
 	"net"
 	"os"
 	"os/signal"
 	"runtime"
-	"runtime/debug"
+	runtime_debug "runtime/debug"
 	"runtime/pprof"
 	"strings"
 	"syscall"
@@ -105,7 +106,7 @@ func (server *Server) loadChannels() {
 
 func (server *Server) processCommand(cmd Command) {
 	client := cmd.Client()
-	if DEBUG_SERVER {
+	if debug.Server {
 		log.Printf("%s → %s %s", client, server, cmd)
 	}
 
@@ -176,19 +177,19 @@ func (s *Server) listen(addr string) {
 		log.Fatal(s, "listen error: ", err)
 	}
 
-	if DEBUG_SERVER {
+	if debug.Server {
 		log.Printf("%s listening on %s", s, addr)
 	}
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			if DEBUG_SERVER {
+			if debug.Server {
 				log.Printf("%s accept error: %s", s, err)
 			}
 			continue
 		}
-		if DEBUG_SERVER {
+		if debug.Server {
 			log.Printf("%s accept: %s", s, conn.RemoteAddr())
 		}
 
@@ -800,7 +801,7 @@ func (msg *DebugCommand) HandleServer(server *Server) {
 		server.Reply(client, "OK")
 
 	case "GCSTATS":
-		stats := &debug.GCStats{
+		stats := &runtime_debug.GCStats{
 			PauseQuantiles: make([]time.Duration, 5),
 		}
 		server.Reply(client, "last GC:     %s", stats.LastGC.Format(time.RFC1123))

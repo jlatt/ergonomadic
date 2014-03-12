@@ -2,6 +2,7 @@ package irc
 
 import (
 	"fmt"
+	"github.com/jlatt/ergonomadic/irc/debug"
 	"log"
 	"net"
 	"time"
@@ -149,7 +150,7 @@ func (client *Client) destroy() {
 
 	client.socket.Close()
 
-	if DEBUG_CLIENT {
+	if debug.Client {
 		log.Printf("%s: destroyed", client)
 	}
 }
