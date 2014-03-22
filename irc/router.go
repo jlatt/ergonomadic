@@ -2,8 +2,18 @@ package irc
 
 import (
 	"bufio"
+	"crypto/tls"
 	"encoding/gob"
 	"net"
+)
+
+var (
+	CIPHER_SUITES = []uint16{
+		tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+		tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+		tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+		tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+	}
 )
 
 type RouterMessage struct {
@@ -30,8 +40,18 @@ func NewRouter() *Router {
 	}
 }
 
-func (router *Router) Connect(addr string) (err error) {
-	if router.connector, err = net.Dial("tcp", addr); err != nil {
+func (router *Router) Connect(addr, certFile, keyFile string) (err error) {
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return
+	}
+
+	router.connector, err = tls.Dial("tcp", addr, &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		CipherSuites: CIPHER_SUITES,
+		MinVersion:   tls.VersionTLS12,
+	})
+	if err != nil {
 		return
 	}
 	router.decoder = gob.NewDecoder(bufio.NewReader(router.connector))
@@ -62,9 +82,11 @@ func (router *Router) ReadAll() {
 }
 
 func (router *Router) Listen(addr string) (err error) {
-	if router.listener, err = net.Listen("tcp", addr); err != nil {
+	router.listener, err = net.Listen("tcp", addr)
+	if err != nil {
 		return
 	}
+
 	go func() {
 		for {
 			conn, err := router.listener.Accept()
@@ -148,4 +170,24 @@ func (rconn *RouterConn) Write(line string) (err error) {
 
 func (rconn *RouterConn) Id() string {
 	return rconn.conn.LocalAddr().String()
+}
+
+//
+// router server
+//
+
+func RouterServer(addr, certFile, keyFile string) (listener net.Listener, err error) {
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return
+	}
+
+	listener, err = tls.Listen("tcp", addr, &tls.Config{
+		Certificates:             []tls.Certificate{cert},
+		CipherSuites:             CIPHER_SUITES,
+		ClientAuth:               tls.RequireAndVerifyClientCert,
+		MinVersion:               tls.VersionTLS12,
+		PreferServerCipherSuites: true,
+	})
+	return
 }
