@@ -8,9 +8,8 @@ import (
 )
 
 const (
-	R   = '→'
-	W   = '←'
-	EOF = ""
+	R = '→'
+	W = '←'
 )
 
 type Socket struct {
