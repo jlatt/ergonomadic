@@ -748,13 +748,14 @@ func NewProxyCommand(args []string) (Command, error) {
 	if len(args) < 5 {
 		return nil, NotEnoughArgsError
 	}
+	sourceIP := NewName(args[1])
 	return &ProxyCommand{
 		net:        NewName(args[0]),
-		sourceIP:   NewName(args[1]),
+		sourceIP:   sourceIP,
 		destIP:     NewName(args[2]),
 		sourcePort: NewName(args[3]),
 		destPort:   NewName(args[4]),
-		hostname:   LookupHostname(NewName(args[1])),
+		hostname:   LookupHostname(sourceIP),
 	}, nil
 }
 

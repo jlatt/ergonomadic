@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/tls"
 	"encoding/gob"
+	"fmt"
 	"net"
 )
 
@@ -140,7 +141,17 @@ func NewRouterConn(conn net.Conn) *RouterConn {
 	return rconn
 }
 
+// TODO send only if not from localhost
+func (rconn *RouterConn) ProxyMessage() string {
+	// TODO handle errors
+	srcIP, srcPort, _ := net.SplitHostPort(rconn.conn.RemoteAddr().String())
+	dstIP, dstPort, _ := net.SplitHostPort(rconn.conn.LocalAddr().String())
+	return fmt.Sprintf("PROXY TCP %s %s %s %s", srcIP, dstIP, srcPort, dstPort)
+}
+
 func (rconn *RouterConn) CopyTo(router *Router) {
+	router.Write(rconn, "CONNECT")
+	router.Write(rconn, rconn.ProxyMessage())
 	for {
 		line, err := rconn.reader.ReadString('\n')
 		if err != nil {
@@ -156,6 +167,7 @@ func (rconn *RouterConn) CopyTo(router *Router) {
 
 		Log.debug.Printf("%s: %s", rconn, line)
 	}
+	router.Write(rconn, "DISCONNECT")
 }
 
 func (rconn *RouterConn) Write(line string) (err error) {
