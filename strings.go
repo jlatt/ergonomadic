@@ -1,4 +1,4 @@
-package irc
+package ergonomadic
 
 import (
 	"code.google.com/p/go.text/unicode/norm"
