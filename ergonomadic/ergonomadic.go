@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/jlatt/ergonomadic/irc"
+	"github.com/jlatt/ergonomadic"
 	"log"
 	"os"
 	"path/filepath"
@@ -16,12 +16,12 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  upgrade -conf <config> -- upgrade database")
 	fmt.Fprintln(os.Stderr, "  genpasswd <password>   -- bcrypt a password")
 	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, "software version:", irc.SEM_VER)
+	fmt.Fprintln(os.Stderr, "software version:", ergonomadic.SEM_VER)
 	flag.PrintDefaults()
 }
 
-func loadConfig(conf string) *irc.Config {
-	config, err := irc.LoadConfig(conf)
+func loadConfig(conf string) *ergonomadic.Config {
+	config, err := ergonomadic.LoadConfig(conf)
 	if err != nil {
 		log.Fatalln("error loading config:", err)
 	}
@@ -48,7 +48,7 @@ func main() {
 
 	switch flag.Arg(0) {
 	case "genpasswd":
-		encoded, err := irc.GenerateEncodedPassword(flag.Arg(1))
+		encoded, err := ergonomadic.GenerateEncodedPassword(flag.Arg(1))
 		if err != nil {
 			log.Fatalln("encoding error:", err)
 		}
@@ -57,22 +57,22 @@ func main() {
 	case "initdb":
 		runFlags.Parse(flag.Args()[1:])
 		config := loadConfig(conf)
-		irc.InitDB(config.Server.Database)
+		ergonomadic.InitDB(config.Server.Database)
 		log.Println("database initialized: ", config.Server.Database)
 
 	case "upgradedb":
 		runFlags.Parse(flag.Args()[1:])
 		config := loadConfig(conf)
-		irc.UpgradeDB(config.Server.Database)
+		ergonomadic.UpgradeDB(config.Server.Database)
 		log.Println("database upgraded: ", config.Server.Database)
 
 	case "run":
 		runFlags.Parse(flag.Args()[1:])
 		config := loadConfig(conf)
-		irc.Log.SetLevel(config.Server.Log)
-		server := irc.NewServer(config)
-		log.Println(irc.SEM_VER, "running")
-		defer log.Println(irc.SEM_VER, "exiting")
+		ergonomadic.Log.SetLevel(config.Server.Log)
+		server := ergonomadic.NewServer(config)
+		log.Println(ergonomadic.SEM_VER, "running")
+		defer log.Println(ergonomadic.SEM_VER, "exiting")
 		server.Run()
 
 	default:

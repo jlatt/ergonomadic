@@ -1,4 +1,4 @@
-package irc
+package ergonomadic
 
 type NickCommand struct {
 	BaseCommand

@@ -1,4 +1,4 @@
-package irc
+package ergonomadic
 
 type TheaterClient Name
 

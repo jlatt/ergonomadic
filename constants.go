@@ -1,4 +1,4 @@
-package irc
+package ergonomadic
 
 const (
 	SEM_VER       = "ergonomadic-1.4.3"
