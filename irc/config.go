@@ -3,7 +3,6 @@ package irc
 import (
 	"code.google.com/p/gcfg"
 	"errors"
-	"log"
 )
 
 type PassConfig struct {
@@ -13,7 +12,7 @@ type PassConfig struct {
 func (conf *PassConfig) PasswordBytes() []byte {
 	bytes, err := DecodePassword(conf.Password)
 	if err != nil {
-		log.Fatal("decode password error: ", err)
+		Log.error.Fatalln("decode password error:", err)
 	}
 	return bytes
 }
@@ -46,7 +45,7 @@ func (conf *Config) Theaters() map[Name][]byte {
 	for s, theaterConf := range conf.Theater {
 		name := NewName(s)
 		if !name.IsChannel() {
-			log.Fatal("config uses a non-channel for a theater!")
+			Log.error.Fatal("config uses a non-channel for a theater!")
 		}
 		theaters[name] = theaterConf.PasswordBytes()
 	}

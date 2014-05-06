@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	_ "github.com/mattn/go-sqlite3"
-	"log"
 	"os"
 )
 
@@ -23,7 +22,7 @@ func InitDB(path string) {
           except_list TEXT DEFAULT '',
           invite_list TEXT DEFAULT '')`)
 	if err != nil {
-		log.Fatal("initdb error: ", err)
+		Log.error.Fatalln("initdb error:", err)
 	}
 }
 
@@ -34,7 +33,7 @@ func UpgradeDB(path string) {
 	for _, col := range cols {
 		_, err := db.Exec(fmt.Sprintf(alter, col))
 		if err != nil {
-			log.Fatal("updatedb error: ", err)
+			Log.error.Fatalln("updatedb error:", err)
 		}
 	}
 }
@@ -42,7 +41,7 @@ func UpgradeDB(path string) {
 func OpenDB(path string) *sql.DB {
 	db, err := sql.Open("sqlite3", path)
 	if err != nil {
-		log.Fatal("open db error: ", err)
+		Log.error.Fatalln("open db error:", err)
 	}
 	return db
 }

@@ -9,7 +9,7 @@ func (m *NickCommand) HandleRegServer(s *Server) {
 	client := m.Client()
 	if !client.authorized {
 		client.ErrPasswdMismatch()
-		client.Quit("bad password")
+		client.Quit(CONN_BAD_PASSWORD, CONN_BAD_PASSWORD)
 		return
 	}
 

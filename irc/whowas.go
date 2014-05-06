@@ -33,7 +33,7 @@ func (list *WhoWasList) Append(client *Client) {
 }
 
 func (list *WhoWasList) Find(nickname Name, limit int64) []*WhoWas {
-	results := make([]*WhoWas, 0)
+	results := make([]*WhoWas, 0, 1)
 	for whoWas := range list.Each() {
 		if nickname != whoWas.nickname {
 			continue

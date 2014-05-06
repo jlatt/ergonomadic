@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"database/sql"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -13,8 +12,14 @@ import (
 	"time"
 )
 
+const (
+	WHOWAS_LENGTH        = 100 // How many WHOWAS entries to save, per server
+	MOTD_MAX_LINE_LENGTH = 80
+)
+
 type ServerCommand interface {
 	Command
+	PreHandleServer(*Server)
 	HandleServer(*Server)
 }
 
@@ -29,7 +34,6 @@ type Server struct {
 	commands  chan Command
 	ctime     time.Time
 	db        *sql.DB
-	idle      chan *Client
 	motdFile  string
 	name      Name
 	newConns  chan net.Conn
@@ -40,26 +44,26 @@ type Server struct {
 	theaters  map[Name][]byte
 }
 
-var (
-	SERVER_SIGNALS = []os.Signal{syscall.SIGINT, syscall.SIGHUP,
-		syscall.SIGTERM, syscall.SIGQUIT}
-)
-
 func NewServer(config *Config) *Server {
+	SERVER_SIGNALS := []os.Signal{
+		syscall.SIGINT,
+		syscall.SIGHUP, // eventually we expect to use HUP to reload config
+		syscall.SIGTERM,
+		syscall.SIGQUIT,
+	}
 	server := &Server{
 		channels:  make(ChannelNameMap),
 		clients:   NewClientLookupSet(),
 		commands:  make(chan Command),
 		ctime:     time.Now(),
 		db:        OpenDB(config.Server.Database),
-		idle:      make(chan *Client),
 		motdFile:  config.Server.MOTD,
 		name:      NewName(config.Server.Name),
 		newConns:  make(chan net.Conn),
 		operators: config.Operators(),
 		signals:   make(chan os.Signal, len(SERVER_SIGNALS)),
-		whoWas:    NewWhoWasList(100),
 		theaters:  config.Theaters(),
+		whoWas:    NewWhoWasList(WHOWAS_LENGTH),
 	}
 
 	if config.Server.Password != "" {
@@ -72,6 +76,7 @@ func NewServer(config *Config) *Server {
 		server.listen(addr)
 	}
 
+	// Attempt to clean up when receiving these signals.
 	signal.Notify(server.signals, SERVER_SIGNALS...)
 
 	return server
@@ -90,16 +95,16 @@ func (server *Server) loadChannels() {
                invite_list
           FROM channel`)
 	if err != nil {
-		log.Fatal("error loading channels: ", err)
+		Log.error.Fatal("error loading channels: ", err)
 	}
 	for rows.Next() {
 		var name, flags, key, topic string
-		var userLimit uint64
+		var userLimit uint
 		var banList, exceptList, inviteList string
 		err = rows.Scan(&name, &flags, &key, &topic, &userLimit, &banList,
 			&exceptList, &inviteList)
 		if err != nil {
-			log.Println("Server.loadChannels:", err)
+			Log.error.Println("Server.loadChannels:", err)
 			continue
 		}
 
@@ -122,7 +127,7 @@ func (server *Server) processCommand(cmd Command) {
 	if !client.registered {
 		regCmd, ok := cmd.(RegServerCommand)
 		if !ok {
-			client.Quit("unexpected command")
+			client.Quit(CONN_UNEXPECTED, CONN_UNEXPECTED)
 			return
 		}
 		regCmd.HandleRegServer(server)
@@ -135,25 +140,17 @@ func (server *Server) processCommand(cmd Command) {
 		return
 	}
 
-	switch srvCmd.(type) {
-	case *PingCommand, *PongCommand:
-		client.Touch()
-
-	case *QuitCommand:
-		// no-op
-
-	default:
-		client.Active()
-		client.Touch()
-	}
-
+	srvCmd.PreHandleServer(server)
 	srvCmd.HandleServer(server)
 }
 
 func (server *Server) Shutdown() {
-	server.db.Close()
 	for _, client := range server.clients.byNick {
-		client.Reply(RplNotice(server, client, "shutting down"))
+		server.Reply(client, RplNotice(server, client, "shutting down"))
+	}
+
+	if err := server.db.Close(); err != nil {
+		Log.error.Println("Server.Shutdown: error:", err)
 	}
 }
 
@@ -171,8 +168,6 @@ func (server *Server) Run() {
 		case cmd := <-server.commands:
 			server.processCommand(cmd)
 
-		case client := <-server.idle:
-			client.Idle()
 		}
 	}
 }
@@ -184,7 +179,7 @@ func (server *Server) Run() {
 func (s *Server) listen(addr string) {
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
-		log.Fatal(s, "listen error: ", err)
+		Log.error.Fatal(s, "listen error: ", err)
 	}
 
 	Log.info.Printf("%s listening on %s", s, addr)
@@ -235,18 +230,13 @@ func (server *Server) MOTD(client *Client) {
 	defer file.Close()
 
 	client.RplMOTDStart()
-	reader := bufio.NewReader(file)
-	for {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			break
-		}
-		line = strings.TrimRight(line, "\r\n")
-
-		if len(line) > 80 {
-			for len(line) > 80 {
-				client.RplMOTD(line[0:80])
-				line = line[80:]
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if len(line) > MOTD_MAX_LINE_LENGTH {
+			for len(line) > MOTD_MAX_LINE_LENGTH {
+				client.RplMOTD(line[0:MOTD_MAX_LINE_LENGTH])
+				line = line[MOTD_MAX_LINE_LENGTH:]
 			}
 			if len(line) > 0 {
 				client.RplMOTD(line)
@@ -270,6 +260,10 @@ func (s *Server) Nick() Name {
 	return s.Id()
 }
 
+func (server *Server) Notice(target *Client, message string) {
+	target.Reply(RplNotice(server, target, NewText(message)))
+}
+
 func (server *Server) Reply(target *Client, message string) {
 	target.Reply(RplPrivMsg(server, target, NewText(message)))
 }
@@ -286,7 +280,7 @@ func (msg *PassCommand) HandleRegServer(server *Server) {
 	client := msg.Client()
 	if msg.err != nil {
 		client.ErrPasswdMismatch()
-		client.Quit("bad password")
+		client.Quit(CONN_BAD_PASSWORD, CONN_BAD_PASSWORD)
 		return
 	}
 
@@ -301,7 +295,7 @@ func (msg *RFC1459UserCommand) HandleRegServer(server *Server) {
 	client := msg.Client()
 	if !client.authorized {
 		client.ErrPasswdMismatch()
-		client.Quit("bad password")
+		client.Quit(CONN_BAD_PASSWORD, CONN_BAD_PASSWORD)
 		return
 	}
 	msg.setUserInfo(server)
@@ -311,7 +305,7 @@ func (msg *RFC2812UserCommand) HandleRegServer(server *Server) {
 	client := msg.Client()
 	if !client.authorized {
 		client.ErrPasswdMismatch()
-		client.Quit("bad password")
+		client.Quit(CONN_BAD_PASSWORD, CONN_BAD_PASSWORD)
 		return
 	}
 	flags := msg.Flags()
@@ -338,7 +332,33 @@ func (msg *UserCommand) setUserInfo(server *Server) {
 }
 
 func (msg *QuitCommand) HandleRegServer(server *Server) {
-	msg.Client().Quit(msg.message)
+	msg.Client().Quit(msg.message, msg.reason)
+}
+
+//
+// pre-commands
+//
+
+func (msg *BaseCommand) PreHandleServer(server *Server) {
+	client := msg.Client()
+	client.Active()
+	client.Touch()
+}
+
+func (msg *PingCommand) PreHandleServer(server *Server) {
+	msg.Client().Touch()
+}
+
+func (msg *PongCommand) PreHandleServer(server *Server) {
+	msg.Client().Touch()
+}
+
+func (msg *IdleCommand) PreHandleServer(server *Server) {
+	// no-op
+}
+
+func (msg *QuitCommand) PreHandleServer(server *Server) {
+	// no-op
 }
 
 //
@@ -363,7 +383,7 @@ func (m *UserCommand) HandleServer(s *Server) {
 }
 
 func (msg *QuitCommand) HandleServer(server *Server) {
-	msg.Client().Quit(msg.message)
+	msg.Client().Quit(msg.message, msg.reason)
 }
 
 func (m *JoinCommand) HandleServer(s *Server) {
@@ -553,7 +573,7 @@ func (msg *AwayCommand) HandleServer(server *Server) {
 func (msg *IsOnCommand) HandleServer(server *Server) {
 	client := msg.Client()
 
-	ison := make([]string, 0)
+	ison := make([]string, 0, 1)
 	for _, nick := range msg.nicks {
 		if iclient := server.clients.Get(nick); iclient != nil {
 			ison = append(ison, iclient.Nick().String())
@@ -707,7 +727,7 @@ func (msg *KillCommand) HandleServer(server *Server) {
 	}
 
 	quitMsg := fmt.Sprintf("KILLed by %s: %s", client.Nick(), msg.comment)
-	target.Quit(NewText(quitMsg))
+	target.Quit(NewText(quitMsg), CONN_CLOSED)
 }
 
 func (msg *WhoWasCommand) HandleServer(server *Server) {
@@ -723,4 +743,8 @@ func (msg *WhoWasCommand) HandleServer(server *Server) {
 		}
 		client.RplEndOfWhoWas(nickname)
 	}
+}
+
+func (msg *IdleCommand) HandleServer(server *Server) {
+	msg.Client().Idle()
 }

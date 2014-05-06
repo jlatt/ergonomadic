@@ -1,6 +1,8 @@
 package irc
 
 import (
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"runtime"
 	"runtime/debug"
@@ -11,6 +13,7 @@ import (
 func (msg *DebugCommand) HandleServer(server *Server) {
 	client := msg.Client()
 	if !client.flags[Operator] {
+		client.ErrNoPrivileges()
 		return
 	}
 
@@ -64,5 +67,16 @@ func (msg *DebugCommand) HandleServer(server *Server) {
 	case "STOPCPUPROFILE":
 		pprof.StopCPUProfile()
 		server.Reply(client, "CPU profiling stopped")
+
+	case "PPROF":
+		go func() {
+			addr := "localhost:6060"
+			if err := http.ListenAndServe(addr, nil); err != nil {
+				Log.debug.Println(err)
+				server.Reply(client, err.Error())
+				return
+			}
+			server.Replyf(client, "serving @ %s", addr)
+		}()
 	}
 }
