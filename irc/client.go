@@ -9,6 +9,11 @@ import (
 const (
 	IDLE_TIMEOUT = time.Minute // how long before a client is considered idle
 	QUIT_TIMEOUT = time.Minute // how long after idle before a client is kicked
+
+	CONN_BAD_PASSWORD Text = "bad password"
+	CONN_CLOSED       Text = "connection closed"
+	CONN_TIMEOUT      Text = "connection timeout"
+	CONN_UNEXPECTED   Text = "unexpected command"
 )
 
 type Client struct {
@@ -29,22 +34,20 @@ type Client struct {
 	realname     Text
 	registered   bool
 	server       *Server
-	socket       *Socket
+	conn         *IRCConn
 	username     Name
 }
 
 func NewClient(server *Server, conn net.Conn) *Client {
-	now := time.Now()
 	client := &Client{
-		atime:        now,
 		authorized:   server.password == nil,
 		capState:     CapNone,
 		capabilities: make(CapabilitySet),
 		channels:     make(ChannelSet),
-		ctime:        now,
+		ctime:        time.Now(),
 		flags:        make(map[UserMode]bool),
 		server:       server,
-		socket:       NewSocket(conn),
+		conn:         NewIRCConn(conn),
 	}
 	client.Touch()
 	go client.run()
@@ -64,17 +67,16 @@ func (client *Client) run() {
 	// Set the hostname for this client. The client may later send a PROXY
 	// command from stunnel that sets the hostname to something more accurate.
 	client.send(NewProxyCommand(AddrLookupHostname(
-		client.socket.conn.RemoteAddr())))
+		client.conn.conn.RemoteAddr())))
 
 	for err == nil {
-		if line, err = client.socket.Read(); err != nil {
-			command = NewQuitCommand("connection closed")
+		if line, err = client.conn.Read(); err != nil {
+			command = NewQuitCommand(CONN_CLOSED, CONN_CLOSED)
 
 		} else if command, err = ParseCommand(line); err != nil {
 			switch err {
 			case ErrParseCommand:
-				client.Reply(RplNotice(client.server, client,
-					NewText("failed to parse command")))
+				client.server.Notice(client, "failed to parse command")
 
 			case NotEnoughArgsError:
 				// TODO
@@ -103,15 +105,19 @@ func (client *Client) send(command Command) {
 // quit timer goroutine
 
 func (client *Client) connectionTimeout() {
-	client.send(NewQuitCommand("connection timeout"))
+	client.send(NewQuitCommand(CONN_TIMEOUT, CONN_TIMEOUT))
 }
 
 //
 // idle timer goroutine
 //
 
+type IdleCommand struct {
+	BaseCommand
+}
+
 func (client *Client) connectionIdle() {
-	client.server.idle <- client
+	client.send(&IdleCommand{})
 }
 
 //
@@ -172,9 +178,9 @@ func (client *Client) destroy() {
 		client.quitTimer.Stop()
 	}
 
-	client.socket.Close()
+	client.conn.Close()
 
-	Log.debug.Printf("%s: destroyed", client)
+	Log.debug.Println(client, "destroyed")
 }
 
 func (client *Client) IdleTime() time.Duration {
@@ -245,7 +251,7 @@ func (client *Client) Friends() ClientSet {
 
 func (client *Client) SetNickname(nickname Name) {
 	if client.HasNick() {
-		Log.error.Printf("%s nickname already set!", client)
+		Log.error.Println(client, "nickname already set", nickname)
 		return
 	}
 	client.nick = nickname
@@ -265,16 +271,16 @@ func (client *Client) ChangeNickname(nickname Name) {
 }
 
 func (client *Client) Reply(reply string) error {
-	return client.socket.Write(reply)
+	return client.conn.Write(reply)
 }
 
-func (client *Client) Quit(message Text) {
+func (client *Client) Quit(message Text, reason Text) {
 	if client.hasQuit {
 		return
 	}
 
 	client.hasQuit = true
-	client.Reply(RplError("quit"))
+	client.Reply(RplError(reason))
 	client.server.whoWas.Append(client)
 	friends := client.Friends()
 	friends.Remove(client)

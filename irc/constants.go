@@ -8,7 +8,7 @@ const (
 	// string codes
 	AWAY    StringCode = "AWAY"
 	CAP     StringCode = "CAP"
-	DEBUG   StringCode = "DEBUG"
+	DEBUG   StringCode = "DEBUG" // non-standard
 	ERROR   StringCode = "ERROR"
 	INVITE  StringCode = "INVITE"
 	ISON    StringCode = "ISON"
@@ -22,15 +22,15 @@ const (
 	NICK    StringCode = "NICK"
 	NOTICE  StringCode = "NOTICE"
 	ONICK   StringCode = "ONICK"
-	OPER    StringCode = "OPER"
+	OPER    StringCode = "OPER" // non-standard
 	PART    StringCode = "PART"
 	PASS    StringCode = "PASS"
 	PING    StringCode = "PING"
 	PONG    StringCode = "PONG"
 	PRIVMSG StringCode = "PRIVMSG"
-	PROXY   StringCode = "PROXY"
+	PROXY   StringCode = "PROXY" // non-standard
 	QUIT    StringCode = "QUIT"
-	THEATER StringCode = "THEATER" // nonstandard
+	THEATER StringCode = "THEATER" // non-standard
 	TIME    StringCode = "TIME"
 	TOPIC   StringCode = "TOPIC"
 	USER    StringCode = "USER"

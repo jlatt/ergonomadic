@@ -1,7 +1,6 @@
 package irc
 
 import (
-	"log"
 	"strconv"
 )
 
@@ -13,7 +12,7 @@ type Channel struct {
 	name      Name
 	server    *Server
 	topic     Text
-	userLimit uint64
+	userLimit uint
 }
 
 // NewChannel creates a new channel from a `Server` and a `name`
@@ -115,7 +114,7 @@ func (channel *Channel) ModeString(client *Client) (str string) {
 		str += " " + channel.key.String()
 	}
 	if showUserLimit {
-		str += " " + strconv.FormatUint(channel.userLimit, 10)
+		str += " " + strconv.FormatUint(uint64(channel.userLimit), 10)
 	}
 
 	return
@@ -123,7 +122,7 @@ func (channel *Channel) ModeString(client *Client) (str string) {
 
 func (channel *Channel) IsFull() bool {
 	return (channel.userLimit > 0) &&
-		(uint64(len(channel.members)) >= channel.userLimit)
+		(uint(len(channel.members)) >= channel.userLimit)
 }
 
 func (channel *Channel) CheckKey(key Text) bool {
@@ -193,17 +192,11 @@ func (channel *Channel) GetTopic(client *Client) {
 		return
 	}
 
-	if channel.topic == "" {
-		// clients appear not to expect this
-		//replier.Reply(RplNoTopic(channel))
-		return
-	}
-
 	client.RplTopic(channel)
 }
 
 func (channel *Channel) SetTopic(client *Client, topic Text) {
-	if !(client.flags[Operator] || channel.members.Has(client)) {
+	if !channel.members.Has(client) && !channel.ClientIsOperator(client) {
 		client.ErrNotOnChannel(channel)
 		return
 	}
@@ -220,37 +213,24 @@ func (channel *Channel) SetTopic(client *Client, topic Text) {
 		member.Reply(reply)
 	}
 
-	if err := channel.Persist(); err != nil {
-		log.Println("Channel.Persist:", channel, err)
-	}
+	channel.Persist()
 }
 
 func (channel *Channel) CanSpeak(client *Client) bool {
 	if client.flags[Operator] {
 		return true
 	}
+
 	if channel.flags[NoOutside] && !channel.members.Has(client) {
 		return false
 	}
+
 	if channel.flags[Moderated] && !(channel.members.HasMode(client, Voice) ||
 		channel.members.HasMode(client, ChannelOperator)) {
 		return false
 	}
-	return true
-}
 
-func (channel *Channel) PrivMsg(client *Client, message Text) {
-	if !channel.CanSpeak(client) {
-		client.ErrCannotSendToChan(channel)
-		return
-	}
-	reply := RplPrivMsg(client, channel, message)
-	for member := range channel.members {
-		if member == client {
-			continue
-		}
-		member.Reply(reply)
-	}
+	return true
 }
 
 func (channel *Channel) applyModeFlag(client *Client, mode ChannelMode,
@@ -390,17 +370,19 @@ func (channel *Channel) applyMode(client *Client, change *ChannelModeChange) boo
 		}
 
 	case UserLimit:
-		limit, err := strconv.ParseUint(change.arg, 10, 64)
-		if err != nil {
+		if plimit, err := strconv.ParseUint(change.arg, 10, 16); err != nil {
 			client.ErrNeedMoreParams("MODE")
 			return false
-		}
-		if (limit == 0) || (limit == channel.userLimit) {
-			return false
-		}
 
-		channel.userLimit = limit
-		return true
+		} else {
+			limit := uint(plimit)
+			if (limit == 0) || (limit == channel.userLimit) {
+				return false
+			}
+
+			channel.userLimit = limit
+			return true
+		}
 
 	case ChannelOperator, Voice:
 		return channel.applyModeMember(client, change.mode, change.op,
@@ -409,6 +391,7 @@ func (channel *Channel) applyMode(client *Client, change *ChannelModeChange) boo
 	default:
 		client.ErrUnknownMode(change.mode, channel)
 	}
+
 	return false
 }
 
@@ -418,7 +401,7 @@ func (channel *Channel) Mode(client *Client, changes ChannelModeChanges) {
 		return
 	}
 
-	applied := make(ChannelModeChanges, 0)
+	applied := make(ChannelModeChanges, 0, len(changes))
 	for _, change := range changes {
 		if channel.applyMode(client, change) {
 			applied = append(applied, change)
@@ -431,9 +414,7 @@ func (channel *Channel) Mode(client *Client, changes ChannelModeChanges) {
 			member.Reply(reply)
 		}
 
-		if err := channel.Persist(); err != nil {
-			log.Println("Channel.Persist:", channel, err)
-		}
+		channel.Persist()
 	}
 }
 
@@ -451,21 +432,34 @@ func (channel *Channel) Persist() (err error) {
 		_, err = channel.server.db.Exec(`
             DELETE FROM channel WHERE name = ?`, channel.name.String())
 	}
+
+	if err != nil {
+		Log.error.Println("Channel.Persist:", channel, err)
+	}
 	return
 }
 
-func (channel *Channel) Notice(client *Client, message Text) {
+func (channel *Channel) textReply(client *Client, makeReply RplTextFunc, message Text) {
 	if !channel.CanSpeak(client) {
 		client.ErrCannotSendToChan(channel)
 		return
 	}
-	reply := RplNotice(client, channel, message)
+
+	reply := makeReply(client, channel, message)
 	for member := range channel.members {
 		if member == client {
 			continue
 		}
 		member.Reply(reply)
 	}
+}
+
+func (channel *Channel) PrivMsg(client *Client, message Text) {
+	channel.textReply(client, RplPrivMsg, message)
+}
+
+func (channel *Channel) Notice(client *Client, message Text) {
+	channel.textReply(client, RplNotice, message)
 }
 
 func (channel *Channel) Quit(client *Client) {
@@ -511,9 +505,7 @@ func (channel *Channel) Invite(invitee *Client, inviter *Client) {
 
 	if channel.flags[InviteOnly] {
 		channel.lists[InviteMask].Add(invitee.UserHost())
-		if err := channel.Persist(); err != nil {
-			log.Println("Channel.Persist:", channel, err)
-		}
+		channel.Persist()
 	}
 
 	inviter.RplInviting(invitee, channel.name)

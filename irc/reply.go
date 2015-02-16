@@ -6,17 +6,19 @@ import (
 	"time"
 )
 
+type StringCode string
+
+type NumericCode uint
+
+type RplTextFunc func(Identifiable, Identifiable, Text) string
+
 type ReplyCode interface {
 	String() string
 }
 
-type StringCode string
-
 func (code StringCode) String() string {
 	return string(code)
 }
-
-type NumericCode uint
 
 func (code NumericCode) String() string {
 	return fmt.Sprintf("%03d", code)
@@ -134,7 +136,8 @@ func RplCurrentMode(client *Client, target *Client) string {
 		perChannelFlags += fmt.Sprintf(" %s:%s", channel.name, channel.members[target])
 	}
 
-	response := NewText(fmt.Sprintf("user %s has %s%s", target.nick, globalFlags, perChannelFlags))
+	response := NewText(fmt.Sprintf("user %s has %s%s", target.nick, globalFlags,
+		perChannelFlags))
 	return RplNotice(client.server, client, response)
 }
 
@@ -159,7 +162,7 @@ func RplQuit(client *Client, message Text) string {
 	return NewStringReply(client, QUIT, ":%s", message)
 }
 
-func RplError(message string) string {
+func RplError(message Text) string {
 	return NewStringReply(nil, ERROR, ":%s", message)
 }
 

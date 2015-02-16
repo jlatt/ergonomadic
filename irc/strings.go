@@ -8,13 +8,26 @@ import (
 
 var (
 	// regexps
-	ChannelNameExpr = regexp.MustCompile(`^[&!#+][\pL\pN]{1,63}$`)
+	ChannelNameExpr = regexp.MustCompile(`^[&!#+][\pL\pN\\pP\\pS]{1,63}$`)
 	NicknameExpr    = regexp.MustCompile("^[\\pL\\pN\\pP\\pS]{1,32}$")
+	ctcpEscaper     = strings.NewReplacer(
+		"\x00", "\x200",
+		"\n", "\x20n",
+		"\r", "\x20r")
 )
 
 // Names are normalized and canonicalized to remove formatting marks
 // and simplify usage. They are things like hostnames and usermasks.
 type Name string
+
+// Text is PRIVMSG, NOTICE, or TOPIC data. It's canonicalized UTF8
+// data to simplify but keeps all formatting.
+type Text string
+
+// CTCPText is text suitably escaped for CTCP.
+type CTCPText string
+
+// constructors
 
 func NewName(str string) Name {
 	return Name(norm.NFKC.String(str))
@@ -53,10 +66,6 @@ func (name Name) Text() Text {
 	return Text(name)
 }
 
-// Text is PRIVMSG, NOTICE, or TOPIC data. It's canonicalized UTF8
-// data to simplify but keeps all formatting.
-type Text string
-
 func NewText(str string) Text {
 	return Text(norm.NFC.String(str))
 }
@@ -64,11 +73,6 @@ func NewText(str string) Text {
 func (text Text) String() string {
 	return string(text)
 }
-
-// CTCPText is text suitably escaped for CTCP.
-type CTCPText string
-
-var ctcpEscaper = strings.NewReplacer("\x00", "\x200", "\n", "\x20n", "\r", "\x20r")
 
 func NewCTCPText(str string) CTCPText {
 	return CTCPText(ctcpEscaper.Replace(str))

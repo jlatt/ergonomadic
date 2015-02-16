@@ -28,7 +28,7 @@ var (
 	parseCommandFuncs  = map[StringCode]parseCommandFunc{
 		AWAY:    ParseAwayCommand,
 		CAP:     ParseCapCommand,
-		DEBUG:   ParseDebugCommand,
+		DEBUG:   ParseDebugCommand, // nonstandard
 		INVITE:  ParseInviteCommand,
 		ISON:    ParseIsOnCommand,
 		JOIN:    ParseJoinCommand,
@@ -40,14 +40,14 @@ var (
 		NAMES:   ParseNamesCommand,
 		NICK:    ParseNickCommand,
 		NOTICE:  ParseNoticeCommand,
-		ONICK:   ParseOperNickCommand,
+		ONICK:   ParseOperNickCommand, // nonstandard
 		OPER:    ParseOperCommand,
 		PART:    ParsePartCommand,
 		PASS:    ParsePassCommand,
 		PING:    ParsePingCommand,
 		PONG:    ParsePongCommand,
 		PRIVMSG: ParsePrivMsgCommand,
-		PROXY:   ParseProxyCommand,
+		PROXY:   ParseProxyCommand, // nonstandard
 		QUIT:    ParseQuitCommand,
 		THEATER: ParseTheaterCommand, // nonstandard
 		TIME:    ParseTimeCommand,
@@ -58,6 +58,7 @@ var (
 		WHOIS:   ParseWhoisCommand,
 		WHOWAS:  ParseWhoWasCommand,
 	}
+	spacesExpr = regexp.MustCompile(` +`)
 )
 
 type BaseCommand struct {
@@ -95,10 +96,6 @@ func ParseCommand(line string) (cmd Command, err error) {
 	return
 }
 
-var (
-	spacesExpr = regexp.MustCompile(` +`)
-)
-
 func splitArg(line string) (arg string, rest string) {
 	parts := spacesExpr.Split(line, 2)
 	if len(parts) > 0 {
@@ -111,7 +108,8 @@ func splitArg(line string) (arg string, rest string) {
 }
 
 func ParseLine(line string) (command StringCode, args []string) {
-	args = make([]string, 0)
+	// commands are supposed to be limited to 15 args
+	args = make([]string, 0, 15)
 	if strings.HasPrefix(line, ":") {
 		_, line = splitArg(line)
 	}
@@ -244,7 +242,7 @@ type RFC2812UserCommand struct {
 }
 
 func (cmd *RFC2812UserCommand) Flags() []UserMode {
-	flags := make([]UserMode, 0)
+	flags := make([]UserMode, 0, 2)
 	if (cmd.mode & 4) == 4 {
 		flags = append(flags, WallOps)
 	}
@@ -283,18 +281,22 @@ func ParseUserCommand(args []string) (Command, error) {
 type QuitCommand struct {
 	BaseCommand
 	message Text
+	reason  Text
 }
 
-func NewQuitCommand(message Text) *QuitCommand {
+func NewQuitCommand(message Text, reason Text) *QuitCommand {
 	cmd := &QuitCommand{
 		message: message,
+		reason:  reason,
 	}
 	cmd.code = QUIT
 	return cmd
 }
 
 func ParseQuitCommand(args []string) (Command, error) {
-	msg := &QuitCommand{}
+	msg := &QuitCommand{
+		reason: CONN_CLOSED,
+	}
 	if len(args) > 0 {
 		msg.message = NewText(args[0])
 	}
@@ -305,7 +307,7 @@ func ParseQuitCommand(args []string) (Command, error) {
 
 type JoinCommand struct {
 	BaseCommand
-	channels map[Name]Text
+	channels map[Name]Text // channel name => password
 	zero     bool
 }
 
@@ -445,7 +447,7 @@ type ModeCommand struct {
 func ParseUserModeCommand(nickname Name, args []string) (Command, error) {
 	cmd := &ModeCommand{
 		nickname: nickname,
-		changes:  make(ModeChanges, 0),
+		changes:  make(ModeChanges, 0, 3),
 	}
 
 	for _, modeChange := range args {
@@ -518,7 +520,7 @@ type ChannelModeCommand struct {
 func ParseChannelModeCommand(channel Name, args []string) (Command, error) {
 	cmd := &ChannelModeCommand{
 		channel: channel,
-		changes: make(ChannelModeChanges, 0),
+		changes: make(ChannelModeChanges, 0, 3),
 	}
 
 	for len(args) > 0 {

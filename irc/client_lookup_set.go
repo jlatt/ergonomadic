@@ -3,7 +3,6 @@ package irc
 import (
 	"database/sql"
 	"errors"
-	"log"
 	"regexp"
 	"strings"
 )
@@ -21,10 +20,14 @@ var (
 		`?`, `_`)
 )
 
+// Return true iff the string contains IRC mask wildcards.
 func HasWildcards(mask string) bool {
 	return wildMaskExpr.MatchString(mask)
 }
 
+// Take a userhost string that might be just a nick and fill in the wildcards
+// for the other parts. To be a full userhost (and easier to parse), add the !*
+// and @* to indicate any username and any hostname.
 func ExpandUserHost(userhost Name) (expanded Name) {
 	expanded = userhost
 	// fill in missing wildcards for nicks
@@ -37,6 +40,7 @@ func ExpandUserHost(userhost Name) (expanded Name) {
 	return
 }
 
+// Quote a SQL like expression.
 func QuoteLike(userhost Name) string {
 	return likeQuoter.Replace(userhost.String())
 }
@@ -73,10 +77,10 @@ func (clients *ClientLookupSet) Remove(client *Client) error {
 	if !client.HasNick() {
 		return ErrNickMissing
 	}
-	if clients.Get(client.nick) != client {
+	if clients.Get(client.Nick()) != client {
 		return ErrNicknameMismatch
 	}
-	delete(clients.byNick, client.nick.ToLower())
+	delete(clients.byNick, client.Nick().ToLower())
 	clients.db.Remove(client)
 	return nil
 }
@@ -146,7 +150,7 @@ func NewClientDB() *ClientDB {
 	for _, stmt := range stmts {
 		_, err := db.db.Exec(stmt)
 		if err != nil {
-			log.Fatal("NewClientDB: ", stmt, err)
+			Log.error.Fatalln("NewClientDB:", stmt, err)
 		}
 	}
 	return db

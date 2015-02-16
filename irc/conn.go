@@ -11,26 +11,26 @@ const (
 	W = '←'
 )
 
-type Socket struct {
+type IRCConn struct {
 	closed  bool
 	conn    net.Conn
 	scanner *bufio.Scanner
 	writer  *bufio.Writer
 }
 
-func NewSocket(conn net.Conn) *Socket {
-	return &Socket{
+func NewIRCConn(conn net.Conn) *IRCConn {
+	return &IRCConn{
 		conn:    conn,
 		scanner: bufio.NewScanner(conn),
 		writer:  bufio.NewWriter(conn),
 	}
 }
 
-func (socket *Socket) String() string {
+func (socket *IRCConn) String() string {
 	return socket.conn.RemoteAddr().String()
 }
 
-func (socket *Socket) Close() {
+func (socket *IRCConn) Close() {
 	if socket.closed {
 		return
 	}
@@ -39,7 +39,7 @@ func (socket *Socket) Close() {
 	Log.debug.Printf("%s closed", socket)
 }
 
-func (socket *Socket) Read() (line string, err error) {
+func (socket *IRCConn) Read() (line string, err error) {
 	if socket.closed {
 		err = io.EOF
 		return
@@ -62,7 +62,7 @@ func (socket *Socket) Read() (line string, err error) {
 	return
 }
 
-func (socket *Socket) Write(line string) (err error) {
+func (socket *IRCConn) Write(line string) (err error) {
 	if socket.closed {
 		err = io.EOF
 		return
@@ -84,7 +84,7 @@ func (socket *Socket) Write(line string) (err error) {
 	return
 }
 
-func (socket *Socket) isError(err error, dir rune) bool {
+func (socket *IRCConn) isError(err error, dir rune) bool {
 	if err != nil {
 		if err != io.EOF {
 			Log.debug.Printf("%s %c error: %s", socket, dir, err)
